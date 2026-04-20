@@ -104,6 +104,11 @@ python manage.py runserver
 
 ---
 
+## 🧪 Webhook Test
+Test commit for webhook validation — webhook trigger check 2026-04-20
+
+---
+
 ## ✅ Design Principles
 
 - **One vulnerability per file** — clean training signal, no mixed patterns
