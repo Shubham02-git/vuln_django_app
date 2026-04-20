@@ -1,0 +1,128 @@
+{
+  "dataset_name": "aisa_vuln_django_training_v1",
+  "description": "Labeled vulnerability patterns for AISA detection + ML training",
+  "vulnerabilities": [
+    {
+      "id": "vuln_001",
+      "weakness_label": "missing_object_level_auth",
+      "display_name": "IDOR - Broken Object Level Authorization",
+      "file": "api/vulnerability_cases/idor_case.py",
+      "class": "OrderView",
+      "method": "get",
+      "vulnerable_line": "order = Order.objects.get(id=id)",
+      "endpoint": "GET /api/orders/<id>/",
+      "cwe": "CWE-639",
+      "owasp": "API1:2023",
+      "severity": "HIGH",
+      "confidence_hint": 0.85,
+      "detection_pattern": "objects.get(id=<url_param>) with no user ownership check",
+      "attack_chain": ["PublicIDOR", "AnyUserAccessAnyOrder", "DataLeak"],
+      "fix_hint": "Use Order.objects.get(id=id, user=request.user) + IsAuthenticated"
+    },
+    {
+      "id": "vuln_002",
+      "weakness_label": "missing_authentication",
+      "display_name": "Missing Authentication on Sensitive Endpoint",
+      "file": "api/vulnerability_cases/auth_missing_case.py",
+      "class": "PublicOrdersView",
+      "method": "get",
+      "vulnerable_line": "orders = Order.objects.all()",
+      "endpoint": "GET /api/orders/public/",
+      "cwe": "CWE-306",
+      "owasp": "API2:2023",
+      "severity": "HIGH",
+      "confidence_hint": 0.91,
+      "detection_pattern": "APIView with no authentication_classes + .all() queryset",
+      "attack_chain": ["UnauthenticatedEndpoint", "FullDataDump", "MassDataExposure"],
+      "fix_hint": "Add permission_classes = [IsAuthenticated] + pagination"
+    },
+    {
+      "id": "vuln_003",
+      "weakness_label": "serializer_data_overexposure",
+      "display_name": "Overexposed Serializer - Sensitive Field Leak",
+      "file": "api/serializers.py",
+      "class": "UserProfileSerializer",
+      "method": null,
+      "vulnerable_line": "fields = \"__all__\"",
+      "endpoint": "GET /api/profile/<user_id>/",
+      "cwe": "CWE-213",
+      "owasp": "API3:2023",
+      "severity": "HIGH",
+      "confidence_hint": 0.92,
+      "detection_pattern": "ModelSerializer fields='__all__' on model with sensitive fields (ssn, token, etc.)",
+      "attack_chain": ["OverexposedSerializer", "SensitiveFieldLeak", "PII_Exposure"],
+      "fix_hint": "Explicitly list allowed fields; never expose ssn, api_token, passwords"
+    },
+    {
+      "id": "vuln_004",
+      "weakness_label": "unsafe_queryset_filtering",
+      "display_name": "User-Controlled Query Filter (IDOR via Query Param)",
+      "file": "api/vulnerability_cases/unsafe_filter_case.py",
+      "class": "UserOrdersView",
+      "method": "get",
+      "vulnerable_line": "orders = Order.objects.filter(user_id=user_id)",
+      "endpoint": "GET /api/orders/filter/?user_id=<id>",
+      "cwe": "CWE-285",
+      "owasp": "API1:2023",
+      "severity": "MEDIUM",
+      "confidence_hint": 0.80,
+      "detection_pattern": "filter(user_id=request.GET.get('user_id')) with no ownership assertion",
+      "attack_chain": ["UserControlledFilter", "CrossUserDataAccess", "IDOR_via_QueryParam"],
+      "fix_hint": "Always filter by request.user, never trust client-supplied user_id"
+    },
+    {
+      "id": "vuln_005",
+      "weakness_label": "admin_endpoint_no_permission_check",
+      "display_name": "Admin Endpoint Without Authorization Guard",
+      "file": "api/vulnerability_cases/admin_exposure_case.py",
+      "class": "AdminDataView",
+      "method": "get",
+      "vulnerable_line": "users = User.objects.all()",
+      "endpoint": "GET /api/admin/users/",
+      "cwe": "CWE-862",
+      "owasp": "API5:2023",
+      "severity": "CRITICAL",
+      "confidence_hint": 0.95,
+      "detection_pattern": "Admin-named endpoint, no IsAdminUser permission, returns User.objects.all()",
+      "attack_chain": ["ExposedAdminEndpoint", "AllUsersDump", "PrivilegeEscalation"],
+      "fix_hint": "Add permission_classes = [IsAdminUser]; restrict to staff only"
+    },
+    {
+      "id": "vuln_006",
+      "weakness_label": "token_reflection_no_validation",
+      "display_name": "Token Reflection Without Validation",
+      "file": "api/vulnerability_cases/token_misuse_case.py",
+      "class": "TokenView",
+      "method": "get",
+      "vulnerable_line": "return Response({\"token\": token})",
+      "endpoint": "GET /api/token/debug/",
+      "cwe": "CWE-598",
+      "owasp": "API2:2023",
+      "severity": "MEDIUM",
+      "confidence_hint": 0.78,
+      "detection_pattern": "request.headers.get('Authorization') echoed back in Response body",
+      "attack_chain": ["TokenReflection", "TokenHarvest", "SessionHijack"],
+      "fix_hint": "Never echo auth credentials; validate token server-side only"
+    }
+  ],
+  "attack_chains": [
+    {
+      "chain_id": "chain_001",
+      "name": "Public Endpoint to Admin Access",
+      "steps": ["PublicOrdersView (missing_auth)", "IDOR via OrderView", "AdminDataView (no permission check)"],
+      "severity": "CRITICAL"
+    },
+    {
+      "chain_id": "chain_002",
+      "name": "Token Harvest to Full Data Access",
+      "steps": ["TokenView (token_reflection)", "SessionHijack", "IDOR or AdminDump"],
+      "severity": "HIGH"
+    },
+    {
+      "chain_id": "chain_003",
+      "name": "Serializer Leak to PII Exposure",
+      "steps": ["UserProfileView (serializer_overexposure)", "SSN + token leaked", "Token reused for auth bypass"],
+      "severity": "HIGH"
+    }
+  ]
+}
